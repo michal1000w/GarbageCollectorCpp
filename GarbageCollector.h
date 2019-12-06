@@ -276,6 +276,12 @@ public:
 	static void showlist();
 
 	static void shutdown();
+
+	unsigned length() {
+		typename list<GCInfo<T>>::iterator p;
+		p = findPtrInfo(addr);
+		return *p->memPtr;
+	}
 };
 
 //Rezerwowanie pamiêci
