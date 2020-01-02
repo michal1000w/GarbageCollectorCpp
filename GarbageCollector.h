@@ -6,6 +6,7 @@
 #include <typeinfo>
 #include <cstdlib>
 
+
 using namespace std;
 
 //#define DISPLAY
@@ -63,7 +64,7 @@ public:
 		ptr--;
 		return *this;
 	}
-	
+
 	//postfixy
 	Iter operator++(int notused) {
 		T* tmp = ptr;
@@ -156,7 +157,7 @@ public:
 	}
 };
 
-template <class T> 
+template <class T>
 bool operator==(const GCInfo<T>& ob1, const GCInfo<T>& ob2) {
 	return (ob1.memPtr == ob2.memPtr);
 }
@@ -167,6 +168,8 @@ template <class T, int size = 0> class GCPtr {
 	T* addr; //wskaŸnik do zaalokowanej pamiêci
 	bool isArray;
 	unsigned arraySize;
+
+	unsigned Length;  //beta
 
 	static bool first;
 
@@ -197,13 +200,15 @@ public:
 		if (size > 0) isArray = true;
 		else isArray = false;
 
-		#ifdef  DISPLAY
-			cout << "Constructing GCPtr. ";
-			if (isArray)
-				cout << " Size [" << arraySize << "]" << endl;
-			else
-				cout << endl;
-		#endif //  DISPLAY
+		Length = size;  //beta
+
+#ifdef  DISPLAY
+		cout << "Constructing GCPtr. ";
+		if (isArray)
+			cout << " Size [" << arraySize << "]" << endl;
+		else
+			cout << endl;
+#endif //  DISPLAY
 	}
 
 	//Konstruktor kopiuj¹cy
@@ -218,13 +223,13 @@ public:
 		if (arraySize > 0) isArray = true;
 		else isArray = false;
 
-		#ifdef DISPLAY
-			cout << "Constructing copy. ";
-			if (isArray)
-				cout << " Size [" << arraySize << "]" << endl;
-			else
-				cout << endl;
-		#endif // DISPLAY
+#ifdef DISPLAY
+		cout << "Constructing copy. ";
+		if (isArray)
+			cout << " Size [" << arraySize << "]" << endl;
+		else
+			cout << endl;
+#endif // DISPLAY
 	}
 
 	//Destruktor
@@ -236,6 +241,7 @@ public:
 	T* operator=(T* t);
 
 	GCPtr& operator=(GCPtr& rv);
+	void operator=(const GCPtr& rv); //beta
 
 	T& operator*() {
 		return *addr;
@@ -277,10 +283,15 @@ public:
 
 	static void shutdown();
 
-	unsigned length() {
+	unsigned length() { //beta
+		return Length;
+	}
+
+private:
+	void set_length() { //beta
 		typename list<GCInfo<T>>::iterator p;
 		p = findPtrInfo(addr);
-		return *p->memPtr;
+		this->Length = *p->memPtr;
 	}
 };
 
@@ -291,6 +302,7 @@ list<GCInfo<T>>GCPtr<T, size>::gclist;
 template <class T, int size>
 bool GCPtr<T, size>::first = true;
 
+
 //destruktor
 template <class T, int size>
 GCPtr<T, size>::~GCPtr() {
@@ -299,12 +311,12 @@ GCPtr<T, size>::~GCPtr() {
 	p = findPtrInfo(addr);
 	if (p->refcount) p->refcount--;
 
-	#ifdef DISPLAY
-		cout << "GCPtr going out of scope.\n";
-	#endif
+#ifdef DISPLAY
+	cout << "GCPtr going out of scope.\n";
+#endif
 
 	//Zbieranie œmieci gdy wskaŸnik wychodzi poza zakres
-	
+
 	collect();
 
 	//niewykluczone, ¿e to siê zmieni na usuwanie dopiero
@@ -317,10 +329,10 @@ template <class T, int size>
 bool GCPtr<T, size>::collect(bool showCount) {
 	bool memfreed = false;
 
-	#ifdef DISPLAY
-		cout << "Before garbage collection: ";
-		showlist();
-	#endif
+#ifdef DISPLAY
+	cout << "Before garbage collection: ";
+	showlist();
+#endif
 
 	typename list<GCInfo<T>>::iterator p;
 	do {
@@ -329,39 +341,40 @@ bool GCPtr<T, size>::collect(bool showCount) {
 			if (p->refcount > 0) continue;
 
 			memfreed = true;
-			
+
 			//free memory
 			if (p->memPtr) {
 				if (p->isArray) {
-					#ifdef DISPLAY
+#ifdef DISPLAY
 					cout << "Deleting array of size: " << p->arraySize << endl;
-					#endif
+#endif
 					if (showCount) cout << "Deleting array of size: " << p->arraySize << endl;
 					delete[] p->memPtr;
 				}
 				else {
-					#ifdef DISPLAY
+#ifdef DISPLAY
 					cout << "Deleting: " << *(T*)p->memPtr << "\n";
-					#endif
+#endif
 					delete p->memPtr;
 				}
 			}
 			//remove from list
 			gclist.remove(*p);
+
 			break;
 		}
 	} while (p != gclist.end());
 
-	#ifdef DISPLAY
+#ifdef DISPLAY
 	cout << "After garbage collector: ";
 	showlist();
-	#endif // DISPLAY
+#endif // DISPLAY
 
 	return memfreed;
 }
 
 template <class T, int size>
-T* GCPtr<T, size>::operator=(T* t) {
+T* GCPtr<T, size>::operator=(T* t) {  //new T
 	typename list<GCInfo<T>>::iterator p;
 
 	p = findPtrInfo(addr);
@@ -376,11 +389,13 @@ T* GCPtr<T, size>::operator=(T* t) {
 	}
 
 	addr = t;
+	this->set_length();  //beta
 	return t;
 }
 
+
 template <class T, int size>
-GCPtr<T, size>& GCPtr<T, size>::operator=(GCPtr& rv) {
+GCPtr<T, size>& GCPtr<T, size>::operator=(GCPtr& rv) {  //set object
 	typename list<GCInfo<T>>::iterator p;
 
 	p = findPtrInfo(addr);
@@ -392,6 +407,27 @@ GCPtr<T, size>& GCPtr<T, size>::operator=(GCPtr& rv) {
 	addr = rv.addr;
 	return rv;
 }
+
+template <class T, int size>
+void GCPtr<T, size>::operator=(const GCPtr& rv) {  //set const object //beta
+	typename list<GCInfo<T>>::iterator p;
+
+	p = findPtrInfo(addr);
+	p->refcount--;
+
+	this->addr = rv.addr;
+	this->arraySize = rv.arraySize;
+	this->first = rv.first;
+	this->gclist = rv.gclist;
+	this->isArray = rv.isArray;
+	this->Length = rv.Length;
+
+	p = findPtrInfo(addr);
+	p->refcount++;
+
+	//return *this;
+}
+
 
 template <class T, int size>
 void GCPtr<T, size>::showlist() {
@@ -440,17 +476,17 @@ void GCPtr<T, size>::shutdown() {
 		p->refcount = 0;
 	}
 
-	#ifdef DISPLAY
+#ifdef DISPLAY
 	cout << "Before collecting for shutdown() for "
 		<< typeid(T).name() << endl;
-	#endif // DISPLAY
+#endif // DISPLAY
 
 	collect();
 
-	#ifdef DISPLAY
+#ifdef DISPLAY
 	cout << "After collection for shutdown() for "
 		<< typeid(T).name() << endl;
-	#endif // DISPLAY
+#endif // DISPLAY
 }
 
-#endif // !GARBAGE_COLLECTOR
+#endif

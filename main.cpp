@@ -9,9 +9,10 @@ int main() {
 	GCPtr<int> a;
 
 	for (int i = 0; i < 9000; i++) {
-		a = new int(i);
+		//a = new int(i);
+		a = new int[1000000];
 	}
-
+	/*
 	GCPtr<double, 10000> b;
 	for (int i = 0; i < 100000; i++) {
 		b = new double[10000];
@@ -49,6 +50,9 @@ int main() {
 	c.shutdown();
 	z.shutdown();
 	c2.shutdown();
+	*/
+	system("pause");
+	a.collect();
 
 	system("pause");
 }
